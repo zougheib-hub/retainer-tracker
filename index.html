@@ -1,0 +1,757 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="Retainer">
+  <meta name="theme-color" content="#0a0a0f">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="apple-touch-icon" href="/icon-192.png">
+  <title>Retainer Tracker</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0a0a0f;
+      --card: #0f0f16;
+      --border: #1c1c26;
+      --text: #f0f0f5;
+      --muted: #52526a;
+      --dim: #2a2a38;
+      --accent: #4ade80;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html { height: 100%; }
+    body {
+      min-height: 100dvh;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      -webkit-font-smoothing: antialiased;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: max(env(safe-area-inset-top), 32px) 24px max(env(safe-area-inset-bottom), 32px);
+    }
+
+    /* Ambient glow behind card */
+    body::before {
+      content: '';
+      position: fixed;
+      top: 20%;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 320px;
+      height: 320px;
+      background: radial-gradient(circle, var(--accent) 0%, transparent 70%);
+      opacity: 0.04;
+      pointer-events: none;
+      transition: background 0.6s ease;
+      border-radius: 50%;
+    }
+
+    .container { width: 100%; max-width: 390px; }
+
+    /* ─── Notification banner ─── */
+    .notif-banner {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px 16px;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      cursor: pointer;
+      transition: border-color 0.2s, opacity 0.2s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .notif-banner:active { opacity: 0.75; }
+    .notif-banner.hidden { display: none; }
+    .notif-icon { font-size: 20px; line-height: 1; flex-shrink: 0; }
+    .notif-text { flex: 1; min-width: 0; }
+    .notif-title { font-size: 13px; font-weight: 500; color: var(--text); }
+    .notif-sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
+    .notif-chevron { color: var(--muted); font-size: 18px; flex-shrink: 0; }
+    .notif-granted { border-color: #4ade8033; cursor: default; }
+    .notif-granted .notif-icon::before { content: '✅'; font-size: 18px; }
+
+    /* ─── Header ─── */
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 28px;
+    }
+    .header-eyebrow {
+      font-size: 10px;
+      font-weight: 500;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+    .header-title {
+      font-size: 20px;
+      font-weight: 500;
+      letter-spacing: -0.025em;
+      color: var(--text);
+    }
+
+    /* ─── Retainer dots ─── */
+    .dots {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 20px;
+      margin-bottom: 28px;
+    }
+    .dot-item { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+    .dot {
+      width: 44px; height: 44px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-family: 'DM Mono', monospace;
+      font-size: 15px;
+      font-weight: 500;
+      border: 1px solid var(--border);
+      background: var(--card);
+      color: var(--dim);
+      transition: all 0.35s cubic-bezier(.34, 1.56, .64, 1);
+    }
+    .dot.active {
+      border: none;
+      transform: scale(1.22);
+      box-shadow: 0 0 20px -4px var(--accent);
+    }
+    .dot-label {
+      font-size: 9px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      font-weight: 500;
+      height: 12px;
+      color: transparent;
+      transition: color 0.3s;
+    }
+    .dot-label.visible { color: var(--accent); }
+
+    /* Connector line between dots */
+    .dot-connector {
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+      max-width: 28px;
+      margin-bottom: 18px;
+    }
+
+    /* ─── Main card ─── */
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      padding: 28px 24px 24px;
+      margin-bottom: 14px;
+      transition: border-color 0.4s;
+      position: relative;
+      overflow: hidden;
+    }
+    .card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--accent), transparent);
+      opacity: 0;
+      transition: opacity 0.4s;
+    }
+    .card.overdue { border-color: color-mix(in srgb, var(--accent) 30%, transparent); }
+    .card.overdue::before { opacity: 0.7; }
+
+    /* Big number */
+    .big-num {
+      text-align: center;
+      margin-bottom: 28px;
+      padding: 8px 0;
+    }
+    .big-label {
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+    .big-value {
+      font-family: 'DM Mono', monospace;
+      font-size: 96px;
+      font-weight: 500;
+      line-height: 0.9;
+      letter-spacing: -0.05em;
+      color: var(--accent);
+      transition: color 0.4s;
+    }
+    .big-of {
+      font-size: 13px;
+      color: var(--muted);
+      margin-top: 8px;
+      font-family: 'DM Mono', monospace;
+    }
+
+    /* Progress */
+    .progress-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    .progress-days { font-size: 12px; color: var(--muted); font-family: 'DM Mono', monospace; }
+    .progress-status { font-size: 12px; color: var(--muted); font-weight: 500; }
+    .progress-status.urgent { color: var(--accent); }
+    .progress-track {
+      height: 5px;
+      background: var(--dim);
+      border-radius: 99px;
+      overflow: hidden;
+      margin-bottom: 22px;
+    }
+    .progress-fill {
+      height: 100%;
+      border-radius: 99px;
+      background: var(--accent);
+      opacity: 0.5;
+      transition: width 0.6s cubic-bezier(.16,1,.3,1), opacity 0.3s;
+    }
+    .progress-fill.full { opacity: 1; }
+
+    /* Date row */
+    .date-row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 22px;
+    }
+    .date-group {}
+    .date-group.right { text-align: right; }
+    .date-key {
+      font-size: 10px;
+      font-weight: 500;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+    .date-val {
+      font-family: 'DM Mono', monospace;
+      font-size: 13px;
+      color: #8888aa;
+      transition: color 0.3s;
+    }
+    .date-val.urgent { color: var(--accent); font-weight: 500; }
+
+    /* Buttons */
+    .btn-switch {
+      width: 100%;
+      background: var(--accent);
+      color: #050508;
+      border: none;
+      border-radius: 14px;
+      padding: 17px 24px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 16px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      cursor: pointer;
+      transition: opacity 0.15s, transform 0.12s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .btn-switch:active { opacity: 0.82; transform: scale(0.98); }
+
+    .btn-edit {
+      background: transparent;
+      color: var(--muted);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 9px 16px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: border-color 0.2s, color 0.2s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .btn-edit:active { border-color: #444; color: #aaa; }
+
+    /* Footer */
+    .footer {
+      text-align: center;
+      color: var(--dim);
+      font-size: 11px;
+      letter-spacing: 0.06em;
+      font-family: 'DM Mono', monospace;
+    }
+
+    /* ─── Modal ─── */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(5, 5, 10, 0.88);
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+      display: flex;
+      align-items: flex-end;
+      z-index: 200;
+      opacity: 0;
+      transition: opacity 0.25s;
+      pointer-events: none;
+    }
+    .modal-overlay.open { opacity: 1; pointer-events: all; }
+    .modal {
+      background: #0f0f18;
+      border: 1px solid #252535;
+      border-bottom: none;
+      border-radius: 24px 24px 0 0;
+      padding: 32px 24px max(env(safe-area-inset-bottom), 28px);
+      width: 100%;
+      transform: translateY(100%);
+      transition: transform 0.3s cubic-bezier(.32,.72,0,1);
+    }
+    .modal-overlay.open .modal { transform: translateY(0); }
+    .modal-drag {
+      width: 36px; height: 4px;
+      background: var(--border);
+      border-radius: 99px;
+      margin: -16px auto 24px;
+    }
+    .modal-title { font-size: 18px; font-weight: 500; margin-bottom: 6px; letter-spacing: -0.02em; }
+    .modal-sub { color: var(--muted); font-size: 13px; margin-bottom: 28px; line-height: 1.5; }
+
+    .form-group { margin-bottom: 18px; }
+    .form-label {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 8px;
+      display: block;
+    }
+    .form-select, .form-date {
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      color: var(--text);
+      padding: 13px 16px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 15px;
+      appearance: none;
+      -webkit-appearance: none;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .form-date { font-family: 'DM Mono', monospace; color-scheme: dark; }
+    .form-select:focus, .form-date:focus { border-color: var(--accent); }
+
+    .modal-actions { display: flex; gap: 10px; margin-top: 24px; }
+    .btn-cancel {
+      flex: 1;
+      background: transparent;
+      color: var(--muted);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 15px;
+      font-weight: 500;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .btn-save {
+      flex: 2;
+      background: var(--accent);
+      color: #050508;
+      border: none;
+      border-radius: 12px;
+      padding: 14px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.15s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .btn-save:active { opacity: 0.8; }
+
+    /* Switch animation */
+    @keyframes pop {
+      0% { transform: scale(1); }
+      40% { transform: scale(0.92); }
+      70% { transform: scale(1.06); }
+      100% { transform: scale(1); }
+    }
+    .pop { animation: pop 0.35s cubic-bezier(.34,1.56,.64,1); }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <!-- Push notification banner -->
+  <div class="notif-banner" id="notifBanner" onclick="handleNotifBanner()">
+    <div class="notif-icon">🔔</div>
+    <div class="notif-text">
+      <div class="notif-title">Enable push alerts</div>
+      <div class="notif-sub">Get notified automatically when it's time to switch</div>
+    </div>
+    <div class="notif-chevron">›</div>
+  </div>
+
+  <!-- Header -->
+  <div class="header">
+    <div>
+      <div class="header-eyebrow">Dr's Rotation Plan</div>
+      <div class="header-title">Retainer Tracker</div>
+    </div>
+    <button class="btn-edit" onclick="openModal()">Edit</button>
+  </div>
+
+  <!-- Dots -->
+  <div class="dots" id="dots">
+    <div class="dot-item">
+      <div class="dot" id="dot1">1</div>
+      <div class="dot-label" id="label1">NOW</div>
+    </div>
+    <div class="dot-connector"></div>
+    <div class="dot-item">
+      <div class="dot" id="dot2">2</div>
+      <div class="dot-label" id="label2">NOW</div>
+    </div>
+    <div class="dot-connector"></div>
+    <div class="dot-item">
+      <div class="dot" id="dot3">3</div>
+      <div class="dot-label" id="label3">NOW</div>
+    </div>
+  </div>
+
+  <!-- Main card -->
+  <div class="card" id="mainCard">
+    <div class="big-num">
+      <div class="big-label">Retainer</div>
+      <div class="big-value" id="bigNum">—</div>
+      <div class="big-of">of 3</div>
+    </div>
+
+    <div class="progress-meta">
+      <span class="progress-days" id="progressDays">Day — of 10</span>
+      <span class="progress-status" id="progressStatus"></span>
+    </div>
+    <div class="progress-track">
+      <div class="progress-fill" id="progressFill" style="width:0%"></div>
+    </div>
+
+    <div class="date-row">
+      <div class="date-group">
+        <div class="date-key">Started</div>
+        <div class="date-val" id="dateStart">—</div>
+      </div>
+      <div class="date-group right">
+        <div class="date-key">Switch on</div>
+        <div class="date-val" id="dateSwitch">—</div>
+      </div>
+    </div>
+
+    <button class="btn-switch" id="switchBtn" onclick="doSwitch()">
+      Switch to Retainer — →
+    </button>
+  </div>
+
+  <div class="footer">1 → 2 → 3 → repeat &nbsp;·&nbsp; 10 days each</div>
+</div>
+
+<!-- Edit modal -->
+<div class="modal-overlay" id="modalOverlay" onclick="handleOverlayTap(event)">
+  <div class="modal">
+    <div class="modal-drag"></div>
+    <div class="modal-title">Set current state</div>
+    <div class="modal-sub">Which retainer are you wearing, and when did you start it?</div>
+
+    <div class="form-group">
+      <label class="form-label" for="setupRetainer">Retainer #</label>
+      <select class="form-select" id="setupRetainer">
+        <option value="1">Retainer 1</option>
+        <option value="2">Retainer 2</option>
+        <option value="3">Retainer 3</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label" for="setupDate">Start date</label>
+      <input type="date" class="form-date" id="setupDate">
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal()">Cancel</button>
+      <button class="btn-save" id="btnSave" onclick="saveSetup()">Save</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── Config ───────────────────────────────────────────────────────
+// ⚠️  Replace this with YOUR generated VAPID public key
+const VAPID_PUBLIC_KEY = 'BK1lM42anm9DXwKnNFfH4EuEh-1_4vg3FxfyrCulCHHVwZRmaNkWKoi57tZzUwn3F96XRfsNPNCk246P4YPR08c';
+
+const COLORS = { 1: '#4ade80', 2: '#60a5fa', 3: '#f472b6' };
+const DAYS_PER_RETAINER = 10;
+
+// ─── State ────────────────────────────────────────────────────────
+let state = {
+  currentRetainer: 1,
+  startDate: today()
+};
+
+function today() {
+  return new Date().toISOString().split('T')[0];
+}
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem('retainer_state');
+    if (raw) state = JSON.parse(raw);
+  } catch (_) {}
+}
+
+function persistState() {
+  localStorage.setItem('retainer_state', JSON.stringify(state));
+}
+
+// ─── Date helpers ─────────────────────────────────────────────────
+function daysSince(dateStr) {
+  const a = new Date(dateStr), b = new Date();
+  a.setHours(0,0,0,0); b.setHours(0,0,0,0);
+  return Math.floor((b - a) / 86400000);
+}
+
+function addDays(dateStr, n) {
+  const d = new Date(dateStr);
+  d.setDate(d.getDate() + n);
+  return d.toISOString().split('T')[0];
+}
+
+function fmtDate(dateStr) {
+  return new Date(dateStr).toLocaleDateString('en-GB', {
+    day: 'numeric', month: 'short', year: 'numeric'
+  });
+}
+
+// ─── Render ───────────────────────────────────────────────────────
+function render() {
+  const { currentRetainer, startDate } = state;
+  const color = COLORS[currentRetainer];
+  const nextR = currentRetainer === 3 ? 1 : currentRetainer + 1;
+  const worn  = daysSince(startDate);
+  const left  = Math.max(0, DAYS_PER_RETAINER - worn);
+  const switchDate = addDays(startDate, DAYS_PER_RETAINER);
+  const overdue    = worn >= DAYS_PER_RETAINER;
+  const pct        = Math.min(100, (worn / DAYS_PER_RETAINER) * 100);
+
+  // CSS accent
+  document.documentElement.style.setProperty('--accent', color);
+
+  // Dots
+  [1,2,3].forEach(n => {
+    const dot   = document.getElementById(`dot${n}`);
+    const label = document.getElementById(`label${n}`);
+    const active = n === currentRetainer;
+    const c = COLORS[n];
+    dot.style.background  = active ? c : '';
+    dot.style.color       = active ? '#050508' : '';
+    dot.style.borderColor = active ? 'transparent' : '';
+    dot.style.boxShadow   = active ? `0 0 20px -4px ${c}` : '';
+    dot.classList.toggle('active', active);
+    label.classList.toggle('visible', active);
+    label.style.color = active ? c : 'transparent';
+  });
+
+  // Big number
+  document.getElementById('bigNum').textContent = currentRetainer;
+
+  // Progress
+  document.getElementById('progressDays').textContent =
+    `Day ${Math.min(worn, DAYS_PER_RETAINER)} of ${DAYS_PER_RETAINER}`;
+
+  const ps = document.getElementById('progressStatus');
+  ps.textContent = overdue ? '⚠ Switch now' : `${left}d remaining`;
+  ps.className = 'progress-status' + (overdue ? ' urgent' : '');
+
+  const fill = document.getElementById('progressFill');
+  fill.style.width = pct + '%';
+  fill.classList.toggle('full', overdue);
+
+  // Dates
+  document.getElementById('dateStart').textContent = fmtDate(startDate);
+  const ds = document.getElementById('dateSwitch');
+  ds.textContent = fmtDate(switchDate);
+  ds.className = 'date-val' + (overdue ? ' urgent' : '');
+
+  // Card
+  document.getElementById('mainCard').classList.toggle('overdue', overdue);
+
+  // Switch button
+  document.getElementById('switchBtn').textContent =
+    `Switch to Retainer ${nextR} →`;
+
+  // Modal save button color
+  document.getElementById('btnSave').style.background = color;
+}
+
+// ─── Actions ──────────────────────────────────────────────────────
+function doSwitch() {
+  const nextR = state.currentRetainer === 3 ? 1 : state.currentRetainer + 1;
+  state.currentRetainer = nextR;
+  state.startDate = today();
+  persistState();
+  syncServer();
+  render();
+  // Pop animation on big number
+  const el = document.getElementById('bigNum');
+  el.classList.remove('pop');
+  void el.offsetWidth; // reflow
+  el.classList.add('pop');
+  // Haptic
+  if (navigator.vibrate) navigator.vibrate([30, 15, 50]);
+}
+
+// ─── Modal ────────────────────────────────────────────────────────
+function openModal() {
+  document.getElementById('setupRetainer').value = state.currentRetainer;
+  document.getElementById('setupDate').value = state.startDate;
+  const overlay = document.getElementById('modalOverlay');
+  overlay.style.display = 'flex';
+  requestAnimationFrame(() => overlay.classList.add('open'));
+}
+
+function closeModal() {
+  const overlay = document.getElementById('modalOverlay');
+  overlay.classList.remove('open');
+  setTimeout(() => { overlay.style.display = 'none'; }, 280);
+}
+
+function handleOverlayTap(e) {
+  if (e.target === document.getElementById('modalOverlay')) closeModal();
+}
+
+function saveSetup() {
+  state.currentRetainer = parseInt(document.getElementById('setupRetainer').value);
+  state.startDate = document.getElementById('setupDate').value;
+  persistState();
+  syncServer();
+  render();
+  closeModal();
+}
+
+// ─── Push notifications ───────────────────────────────────────────
+function urlBase64ToUint8Array(b64) {
+  const pad = '='.repeat((4 - b64.length % 4) % 4);
+  const b64u = (b64 + pad).replace(/-/g, '+').replace(/_/g, '/');
+  return new Uint8Array([...atob(b64u)].map(c => c.charCodeAt(0)));
+}
+
+async function handleNotifBanner() {
+  if (!('Notification' in window) || !('serviceWorker' in navigator)) {
+    alert('Push notifications require a modern browser with HTTPS.');
+    return;
+  }
+  if (Notification.permission === 'granted') return;
+
+  const perm = await Notification.requestPermission();
+  if (perm === 'granted') {
+    await subscribePush();
+  }
+}
+
+async function subscribePush() {
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) {
+      sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+      });
+    }
+    await syncServer(sub);
+    localStorage.setItem('push_enabled', '1');
+    updateBanner(true);
+  } catch (err) {
+    console.error('Push subscribe failed:', err);
+    alert('Could not enable push notifications.\nMake sure the app is running on HTTPS.');
+  }
+}
+
+function updateBanner(granted) {
+  const banner = document.getElementById('notifBanner');
+  if (granted) {
+    banner.classList.add('notif-granted');
+    banner.querySelector('.notif-icon').textContent = '✅';
+    banner.querySelector('.notif-title').textContent = 'Push alerts active';
+    banner.querySelector('.notif-sub').textContent = "You'll be notified at 9 AM on switch days";
+  }
+}
+
+async function syncServer(subOverride) {
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    const sub = subOverride || (await reg.pushManager.getSubscription());
+    if (!sub) return;
+
+    const switchDate = addDays(state.startDate, DAYS_PER_RETAINER);
+    await fetch('/api/subscribe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        subscription: sub.toJSON(),
+        currentRetainer: state.currentRetainer,
+        switchDate
+      })
+    });
+  } catch (err) {
+    console.warn('Server sync skipped:', err.message);
+  }
+}
+
+// ─── Init ─────────────────────────────────────────────────────────
+async function init() {
+  loadState();
+  render();
+
+  // Register service worker
+  if ('serviceWorker' in navigator) {
+    try {
+      await navigator.serviceWorker.register('/sw.js');
+    } catch (err) {
+      console.warn('SW failed:', err);
+    }
+  }
+
+  // Check notification state
+  if (localStorage.getItem('push_enabled') === '1') {
+    if (Notification.permission === 'granted') {
+      updateBanner(true);
+      syncServer(); // re-sync schedule in case state changed
+    } else {
+      localStorage.removeItem('push_enabled');
+    }
+  }
+
+  // Hide modal on start
+  document.getElementById('modalOverlay').style.display = 'none';
+}
+
+init();
+</script>
+</body>
+</html>
