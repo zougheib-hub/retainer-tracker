@@ -581,7 +581,7 @@ function render() {
 
   // Progress
   document.getElementById('progressDays').textContent =
-    `Day ${Math.min(worn, DAYS_PER_RETAINER)} of ${DAYS_PER_RETAINER}`;
+    `Day ${Math.min(worn +1, DAYS_PER_RETAINER)} of ${DAYS_PER_RETAINER}`;
 
   const ps = document.getElementById('progressStatus');
   ps.textContent = overdue ? '⚠ Switch now' : `${left}d remaining`;
