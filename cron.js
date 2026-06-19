@@ -21,4 +21,27 @@ module.exports = async function handler(req, res) {
 
     const { subscription, currentRetainer, switchDate } = JSON.parse(result);
 
-    const dubaiNow = new Date(Date.now() + 4 * 60 * 60
+    // Dubai is UTC+4 — figure out today's date in Dubai time
+    const dubaiNow = new Date(Date.now() + 4 * 60 * 60 * 1000);
+    const todayDubai = dubaiNow.toISOString().split('T')[0];
+
+    if (todayDubai < switchDate) {
+      return res.status(200).json({ ok: true, message: 'Not due yet' });
+    }
+
+    const nextRetainer = currentRetainer === 3 ? 1 : currentRetainer + 1;
+
+    const payload = JSON.stringify({
+      title: '🦷 Time to switch retainers',
+      body: `Switch from Retainer ${currentRetainer} to Retainer ${nextRetainer} now.`,
+      url: '/'
+    });
+
+    await webpush.sendNotification(subscription, payload);
+
+    res.status(200).json({ ok: true, sent: true });
+  } catch (err) {
+    console.error('Cron error:', err);
+    res.status(500).json({ error: err.message });
+  }
+};
